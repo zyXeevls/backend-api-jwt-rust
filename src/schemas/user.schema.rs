@@ -22,3 +22,14 @@ pub struct UserResponse {
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
+
+#[derive(Deserialize, Validate)]
+pub struct UserUpdateRequest {
+    #[validate(length(min = 3, message = "Nama harus memiliki setidaknya 3 karakter"))]
+    pub name: String,
+
+    #[validate(email(message = "Email tidak valid"))]
+    pub email: String,
+
+    pub password: Option<String>,
+}

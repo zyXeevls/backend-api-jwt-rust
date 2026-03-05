@@ -1,9 +1,9 @@
 use axum::{
     Router, middleware,
-    routing::{get, post},
+    routing::{get, post, put},
 };
 
-use crate::handlers::user_handler::{index, show, store};
+use crate::handlers::user_handler::{index, show, store, update};
 
 use crate::middlewares::auth_middleware::auth;
 
@@ -12,5 +12,6 @@ pub fn user_routes() -> Router {
         .route("/api/users", get(index))
         .route("/api/users", post(store))
         .route("/api/users/{id}", get(show))
+        .route("/api/users/{id}", put(update))
         .layer(middleware::from_fn(auth))
 }
