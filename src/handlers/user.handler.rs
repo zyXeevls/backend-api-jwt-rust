@@ -339,3 +339,48 @@ pub async fn update(
         )),
     )
 }
+
+pub async fn destroy(
+    Path(id): Path<i64>,
+    Extension(db): Extension<PgPool>,
+) -> (StatusCode, Json<ApiResponse<Value>>) {
+    let user_exists = match sqlx::query_scalar::<_, i64>("SELECT id FROM users WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&db)
+        .await
+    {
+        Ok(Some(user_id)) => user_id,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::error("User tidak ditemukan")),
+            );
+        }
+        Err(e) => {
+            eprintln!("Database error: {}", e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::error("Terjadi kesalahan pada server")),
+            );
+        }
+    };
+
+    let result = sqlx::query("DELETE FROM users WHERE id = $1")
+        .bind(user_exists)
+        .execute(&db)
+        .await;
+
+    match result {
+        Ok(_) => (
+            StatusCode::OK,
+            Json(ApiResponse::success("User berhasil dihapus", json!(null))),
+        ),
+        Err(e) => {
+            eprintln!("Database error: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::error("Gagal menghapus User")),
+            )
+        }
+    }
+}
