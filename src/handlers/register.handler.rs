@@ -1,25 +1,29 @@
 use axum::{Extension, Json, http::StatusCode};
 use bcrypt::hash;
 use serde_json::{Value, json};
-use sqlx::MySqlPool;
+use sqlx::{FromRow, PgPool};
 use std::collections::HashMap;
 use validator::Validate;
 
-// import schema request dan response register
 use crate::schemas::register_schema::{RegisterRequest, RegisterResponse};
-
-// import util response API
 use crate::utils::response::ApiResponse;
 
+#[derive(Debug, FromRow)]
+struct RegisterUserRow {
+    id: i64,
+    name: String,
+    email: String,
+    created_at: chrono::NaiveDateTime,
+    updated_at: chrono::NaiveDateTime,
+}
+
 pub async fn register(
-    Extension(db): Extension<MySqlPool>,
+    Extension(db): Extension<PgPool>,
     Json(payload): Json<RegisterRequest>,
 ) -> (StatusCode, Json<ApiResponse<Value>>) {
-    // Validasi Request
     if let Err(errors) = payload.validate() {
         let mut field_errors: HashMap<String, Vec<String>> = HashMap::new();
 
-        // kumpulkan semua error dari validasi
         for (field, errors) in errors.field_errors() {
             let messages = errors
                 .iter()
@@ -31,7 +35,6 @@ pub async fn register(
         }
 
         return (
-            // kirim response 422 Unprocessable Entity
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(ApiResponse {
                 status: false,
@@ -41,8 +44,7 @@ pub async fn register(
         );
     }
 
-    // Hash Password Dengan Bcrypt
-    let password = match hash(payload.password, 10) {
+    let hashed_password = match hash(payload.password, 10) {
         Ok(hashed) => hashed,
         Err(_) => {
             return (
@@ -52,70 +54,48 @@ pub async fn register(
         }
     };
 
-    // Insert Data User ke Database
-    let result = sqlx::query!(
-        "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
-        payload.name,
-        payload.email,
-        password
+    let result = sqlx::query_as::<_, RegisterUserRow>(
+        r#"
+        INSERT INTO users (name, email, password)
+        VALUES ($1, $2, $3)
+        RETURNING id, name, email, created_at, updated_at
+        "#,
     )
-    .execute(&db)
+    .bind(&payload.name)
+    .bind(&payload.email)
+    .bind(&hashed_password)
+    .fetch_one(&db)
     .await;
 
     match result {
-        Ok(result) => {
-            // get id user yang baru saja dibuat
-            let user_id = result.last_insert_id() as i64;
+        Ok(user) => {
+            let response = RegisterResponse {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                created_at: user.created_at,
+                updated_at: user.updated_at,
+            };
 
-            // Ambil data user berdasarkan ID
-            let user = sqlx::query!(
-                r#"
-                SELECT id, name, email, created_at, updated_at
-                FROM users
-                WHERE id = ?
-                "#,
-                user_id
+            (
+                StatusCode::CREATED,
+                Json(ApiResponse::success("Register Berhasil!", json!(response))),
             )
-            .fetch_one(&db)
-            .await;
-
-            match user {
-                Ok(user) => {
-                    let response = RegisterResponse {
-                        id: user.id,
-                        name: user.name,
-                        email: user.email,
-                        created_at: user.created_at,
-                        updated_at: user.updated_at,
-                    };
-
-                    (
-                        // kirim response 201 Created
-                        StatusCode::CREATED,
-                        Json(ApiResponse::success("Register Berhasil!", json!(response))),
-                    )
-                }
-                Err(_) => (
-                    // kirim response 500 Internal Server Error
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::error("Gagal mengambil data user")),
-                ),
-            }
         }
         Err(e) => {
-            if e.to_string().contains("Duplicate entry") {
-                (
-                    // kirim response 409 Conflict
-                    StatusCode::CONFLICT,
-                    Json(ApiResponse::error("Email sudah terdaftar")),
-                )
-            } else {
-                (
-                    // kirim response 500 Internal Server Error
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::error("Register Gagal!")),
-                )
+            if let sqlx::Error::Database(db_err) = &e {
+                if db_err.code().as_deref() == Some("23505") {
+                    return (
+                        StatusCode::CONFLICT,
+                        Json(ApiResponse::error("Email sudah terdaftar")),
+                    );
+                }
             }
+
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::error("Register Gagal!")),
+            )
         }
     }
 }

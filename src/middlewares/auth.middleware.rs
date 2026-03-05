@@ -2,7 +2,7 @@ use axum::{
     Json,
     extract::Request,
     http::{HeaderMap, StatusCode},
-    middlewre::Next,
+    middleware::Next,
     response::Response,
 };
 

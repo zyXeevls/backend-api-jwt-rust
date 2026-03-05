@@ -36,15 +36,20 @@ src/
 	config/
 		database.rs
 	handlers/
+		login.handler.rs
 		register.handler.rs
+		user.handler.rs
 	middlewares/
 		auth.middleware.rs
 	models/
 		user.rs
 	routes/
 		auth.routes.rs
+		user.routes.rs
 	schemas/
+		login.schema.rs
 		register.schema.rs
+		user.schema.rs
 	utils/
 		jwt.rs
 		response.rs
@@ -105,6 +110,27 @@ Server akan aktif di:
 http://127.0.0.1:<APP_PORT>
 ```
 
+## Endpoint API
+
+### Public Routes
+
+- `POST /api/register` — registrasi user baru
+- `POST /api/login` — login dan mendapatkan JWT
+
+### Protected Routes (butuh Bearer Token)
+
+- `GET /api/users` — daftar user
+- `POST /api/users` — tambah user
+- `GET /api/users/{id}` — detail user berdasarkan id
+
+Contoh header auth:
+
+```http
+Authorization: Bearer <jwt_token>
+```
+
+Catatan penting: untuk Axum versi terbaru, path parameter harus memakai format `{id}` (bukan `:id`).
+
 ## Migrasi Database
 
 Migrasi saat ini membuat tabel `users`:
@@ -123,7 +149,7 @@ Catatan: sintaks migrasi sudah disesuaikan untuk **PostgreSQL**.
 - `src/main.rs`
 	- inisialisasi `.env`
 	- koneksi DB (`config::database::connect`)
-	- setup `Router`
+	- setup router auth + user
 	- start server Axum
 
 - `src/config/database.rs`
@@ -135,11 +161,16 @@ Catatan: sintaks migrasi sudah disesuaikan untuk **PostgreSQL**.
 - `src/utils/response.rs`
 	- format response API generik (`ApiResponse<T>`)
 
-## Status Implementasi Endpoint
+## Status Implementasi
 
-Beberapa modul endpoint/auth sudah disiapkan, namun routing endpoint publik/protected masih perlu dirangkai penuh di router utama.
+Fitur yang sudah aktif:
 
-Dengan kata lain, proyek sudah siap sebagai **fondasi backend auth**, tetapi masih perlu penyelesaian wiring handler + route agar endpoint bisa diakses end-to-end.
+- Register user (`/api/register`)
+- Login user + generate JWT (`/api/login`)
+- Middleware verifikasi JWT untuk route user
+- List user, store user, dan detail user per id
+
+Build status terakhir: `cargo check` sukses.
 
 ## Troubleshooting
 
@@ -163,11 +194,19 @@ Periksa:
 - `DATABASE_URL` benar
 - Database target sudah dibuat
 
+### 4) Aplikasi panic karena port sudah dipakai (`os error 10048`)
+
+Penyebab: port di `APP_PORT` sedang dipakai proses lain.
+
+Solusi:
+
+- ganti nilai `APP_PORT` di `.env`, atau
+- matikan proses yang sedang memakai port tersebut.
+
 ## Pengembangan Lanjutan (Saran)
 
-- Tambah route auth (`/api/auth/register`, `/api/auth/login`)
-- Rapikan konsistensi layer DB/query (PostgreSQL secara penuh)
-- Tambah middleware auth ke route protected
+- Tambah endpoint update/delete user
+- Tambah pagination dan search untuk list user
 - Tambah testing (unit/integration)
 - Tambah dokumentasi API (OpenAPI/Swagger)
 

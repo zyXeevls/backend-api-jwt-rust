@@ -1,11 +1,12 @@
-use chrono::{DateTime, Utc};
+use chrono::NaiveDateTime;
 use serde::Serialize;
+use sqlx::FromRow;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, FromRow)]
 pub struct User {
     pub id: i64,
-    pub name: string,
-    pub email: string,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub name: String,
+    pub email: String,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }

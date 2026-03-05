@@ -3,6 +3,12 @@ use dotenvy::dotenv;
 use std::net::SocketAddr;
 
 mod config;
+mod handlers;
+mod middlewares;
+mod models;
+mod routes;
+mod schemas;
+mod utils;
 
 #[tokio::main]
 async fn main() {
@@ -10,7 +16,10 @@ async fn main() {
 
     let db = config::database::connect().await;
 
-    let app = Router::new().layer(Extension(db));
+    let app = Router::new()
+        .merge(routes::auth_routes::auth_routes())
+        .merge(routes::user_routes::user_routes())
+        .layer(Extension(db));
 
     let port = std::env::var("APP_PORT")
         .ok()
